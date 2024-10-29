@@ -1,6 +1,6 @@
 //
-//  TileableRemoteBrightness.metal
-//  FxStartPlugin
+//  VertexShader.metal
+//  Wrapper Application
 //
 //  Created by Kacper  on 03/09/2024.
 //
@@ -8,27 +8,16 @@
 #include <metal_stdlib>
 #include <simd/simd.h>
 
+
 using namespace metal;
 
-#include "TileableRemoteBrightnessShaderTypes.h"
-
-typedef struct
-{
-    // The [[position]] attribute of this member indicates that this value is the clip space
-    // position of the vertex when this structure is returned from the vertex function
-    float4 clipSpacePosition [[position]];
-    
-    // Since this member does not have a special attribute, the rasterizer interpolates
-    // its value with the values of the other triangle vertices and then passes
-    // the interpolated value to the fragment shader for each fragment in the triangle
-    float2 textureCoordinate;
-    
-} RasterizerData;
+#include "RasterizerData.h"
+#include "ShaderTypes.h"
 
 vertex RasterizerData
 vertexShader(uint vertexID [[vertex_id]],
-             constant Vertex2D *vertexArray [[buffer(BVI_Vertices)]],
-             constant vector_uint2 *viewportSizePointer [[buffer(BVI_ViewportSize)]])
+             constant Vertex2D *vertexArray [[buffer(VI_Vertices)]],
+             constant vector_uint2 *viewportSizePointer [[buffer(VI_ViewportSize)]])
 {
     RasterizerData out;
     
@@ -65,19 +54,4 @@ vertexShader(uint vertexID [[vertex_id]],
     return out;
 }
 
-// Fragment function
-fragment float4 fragmentShader(RasterizerData in [[stage_in]],
-                               texture2d<half> colorTexture [[ texture(BTI_InputImage) ]],
-                               constant float* brightness [[ buffer(BFI_Brightness) ]])
-{
-    constexpr sampler textureSampler (mag_filter::linear,
-                                      min_filter::linear);
-    
-    // Sample the texture to obtain a color
-    half4 colorSample = colorTexture.sample(textureSampler, in.textureCoordinate);
-    const half hBrightness = static_cast<half>(*brightness);
-    colorSample.rgb = colorSample.rgb * hBrightness;
-    
-    // We return the color of the texture
-    return float4(colorSample);
-}
+
