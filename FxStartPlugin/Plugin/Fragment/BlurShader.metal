@@ -6,72 +6,10 @@
 //
 
 #include <metal_stdlib>
-#include <metal_math>
-#include <metal_graphics>
-#include <metal_atomic>
-#include <metal_simdgroup_matrix>
-#include <simd/simd.h>
-
 using namespace metal;
 
 #include "../ShaderTypes.h"
 #include "../RasterizerData.h"
-
-#pragma mark Default Shader
-[[fragment]]
-float4 fragmentDefaultShader(RasterizerData in [[stage_in]],
-                               texture2d<half> colorTexture [[ texture(TI_NoneInputImage) ]])
-{
-    constexpr sampler textureSampler (mag_filter::linear,
-                                      min_filter::linear);
-    
-    half4 colorSample = colorTexture.sample(textureSampler, in.textureCoordinate);
-    
-    return static_cast<float4>(colorSample);
-}
-
-
-
-#pragma mark Brightness Shader
-[[fragment]]
-float4 fragmentBrightnessShader(RasterizerData in [[stage_in]],
-                               texture2d<half> colorTexture [[ texture(TI_BrightnessInputImage) ]],
-                               constant float* brightness [[ buffer(FIB_Brightness) ]],
-                               constant bool* clampVal [[ buffer(FIB_Clamp) ]])
-{
-    constexpr sampler textureSampler (mag_filter::linear,
-                                      min_filter::linear);
-    
-    half4 colorSample = colorTexture.sample(textureSampler, in.textureCoordinate);
-    const half hBrightness = static_cast<half>(*brightness);
-    colorSample.rgb = colorSample.rgb * hBrightness;
-    
-    if(*clampVal) return clamp(static_cast<float4>(colorSample), 0.0, 1.0);
-    
-    return static_cast<float4>(colorSample);
-}
-
-
-
-#pragma mark Negative Shader
-[[fragment]]
-float4 fragmentNegativeShader(RasterizerData in [[stage_in]],
-                               texture2d<half> colorTexture [[ texture(TI_NegativeInputImage) ]],
-                                       constant bool* negative [[ buffer(FIN_Negative)]])
-{
-    constexpr sampler textureSampler (mag_filter::linear,
-                                      min_filter::linear);
-    
-    half4 colorSample = colorTexture.sample(textureSampler, in.textureCoordinate);
-    
-    if(*negative == true)
-        return 1.0 - static_cast<float4>(colorSample);
-    else
-        return static_cast<float4>(colorSample);
-}
-
-
-
 
 
 #pragma mark Gaussian Blur Shader
@@ -201,65 +139,3 @@ fragment float4 fragmentBoxBlurShader(RasterizerData in [[stage_in]],
     return static_cast<float4>(colorSample) / pow(2*r + 1, 2);
 }
 
-
-
-
-
-
-
-#pragma mark Oil Painting Shader
-fragment float4 fragmentOilPaintingShader(RasterizerData in [[stage_in]],
-                               texture2d<half> colorTexture [[ texture(TI_OilPaintingInputImage) ]],
-                                           constant int* radius [[buffer(FIOP_Radius)]],
-                                           constant int* levelOfIntencity [[buffer(FIOP_LevelOfIntencity)]],
-                                           constant float* texelSizeX [[buffer(FIOP_TexelSizeX)]],
-                                           constant float* texelSizeY [[buffer(FIOP_TexelSizeY)]])
-{
-    constexpr sampler textureSampler (mag_filter::linear,
-                                      min_filter::linear);
-    
-    if(*radius == 0)
-        return static_cast<float4>(colorTexture.sample(textureSampler, in.textureCoordinate));
-    
-    float x = *texelSizeX, y = *texelSizeY;
-    unsigned int r = *radius, loi = *levelOfIntencity;
-    int intensityCount[256] = {0};
-    float3 averageColor[256] = {float3(0.0)};
-    
-    for (unsigned int i{0}; i < 256; i++)
-    {
-        intensityCount[i] = 0;
-        averageColor[i] = float3(0.0);
-    }
-    
-    for(unsigned int i{0}; i < 2*r + 1; i++)
-    {
-        for(unsigned int j{0}; j < 2*r + 1; j++)
-        {
-            float2 offset = float2((i - float(r)) * x, (j - float(r)) * y);
-
-            float4 color = static_cast<float4>(colorTexture.sample(textureSampler, in.textureCoordinate + offset));
-            
-            int currIntensity = int(((color.r + color.g + color.b) / 3.0) * (float(loi)));
-            
-            intensityCount[currIntensity]++;
-            averageColor[currIntensity] += color.rgb;
-        }
-    }
-    
-    int curMax = intensityCount[0];
-    int maxIndex = 0;
-    
-    for(unsigned int i{1}; i < loi; i++)
-    {
-        if(intensityCount[i] > curMax)
-        {
-            curMax = intensityCount[i];
-            maxIndex = i;
-        }
-    }
-    
-    float3 finalColor = (curMax > 0) ? averageColor[maxIndex] / float(curMax) : float3(0.0);
-
-    return float4(finalColor, 1.0);
-}
